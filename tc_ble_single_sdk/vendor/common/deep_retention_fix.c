@@ -24,16 +24,27 @@
 extern my_fifo_t blt_txfifo;
 
 /**
- * @brief DMA TX buffer register address for RF
+ * @brief RAM base address for the Telink TLSR82xx/TC32xx series
  * 
- * The RF DMA uses this register to know where to read TX packet data from.
- * After deep retention, this register may point to the wrong location.
+ * The SRAM starts at 0x840000 on these chips. When configuring DMA,
+ * the address is split into:
+ *   - Low 16 bits: offset within SRAM
+ *   - High byte: 0x04 (represents 0x840000 >> 16 = 0x84, but register uses 0x04)
+ */
+#define RAM_BASE_ADDR           0x840000
+#define RAM_BASE_ADDR_HIGH      0x04        // High address bits for DMA (0x840000 >> 16 & 0x0F)
+
+/**
+ * @brief DMA TX buffer register addresses for RF
  * 
- * Note: reg_dma_rf_tx_addr = reg_dma3_addr = REG_ADDR16(0xc0c)
- * This is a 16-bit register but is used with the high byte address (0x04 = 0x840000 base)
+ * The RF DMA uses these registers to know where to read TX packet data from.
+ * After deep retention, these registers may point to the wrong location.
+ * 
+ * Register mapping (from drivers/B85/register.h):
+ *   reg_dma_rf_tx_addr = reg_dma3_addr = REG_ADDR16(0xc0c)
  */
 #define REG_DMA_RF_TX_ADDR_LO   (*(volatile u16*)(0x800c0c))  // RF TX DMA address low 16 bits
-#define REG_DMA_RF_TX_ADDR_HI   (*(volatile u8*)(0x800c0e))   // RF TX DMA address high bits
+#define REG_DMA_RF_TX_ADDR_HI   (*(volatile u8*)(0x800c0e))   // RF TX DMA address high byte
 
 /**
  * @brief Get the current TX packet pointer from the FIFO
@@ -99,13 +110,13 @@ _attribute_ram_code_ void blc_ll_fix_deepRetn_txFifo(void)
          */
 #if 0  // Uncomment to enable direct DMA fix
         // The pending packet data starts at offset 4 (after DMA length field)
-        // The DMA address is relative to 0x840000 (RAM base)
+        // The DMA address is relative to RAM_BASE_ADDR (0x840000)
         u32 tx_addr = (u32)pending_pkt;
-        if (tx_addr >= 0x840000) {
-            tx_addr -= 0x840000;  // Convert to relative address
+        if (tx_addr >= RAM_BASE_ADDR) {
+            tx_addr -= RAM_BASE_ADDR;  // Convert to relative address (offset within SRAM)
         }
         REG_DMA_RF_TX_ADDR_LO = (u16)(tx_addr & 0xFFFF);
-        REG_DMA_RF_TX_ADDR_HI = 0x04;  // High address bits for RAM (0x840000 >> 16 = 0x84, but register uses 0x04)
+        REG_DMA_RF_TX_ADDR_HI = RAM_BASE_ADDR_HIGH;  // Set high address bits for SRAM access
 #endif
 
         /*
