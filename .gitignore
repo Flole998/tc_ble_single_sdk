@@ -1,0 +1,22 @@
+# Object files
+*.o
+
+# Build artifacts
+*.elf
+*.bin
+*.hex
+*.lst
+*.map
+
+# IDE settings
+.settings/
+.cproject
+.project
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Debug files
+*.log
